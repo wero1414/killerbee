@@ -13,6 +13,7 @@ from .kbutils import isIpAddr
 from .kbutils import search_usb
 from .kbutils import isSerialDeviceString
 from .kbutils import issl_nodetest
+from .kbutils import iscatsniffer
 from .kbutils import issl_beehive
 from .kbutils import iszigduino
 from .kbutils import isfreakduino
@@ -99,6 +100,9 @@ class KillerBee:
             elif hardware == "sewio":
                 from .dev_sewio import SEWIO
                 self.driver = SEWIO(dev=device)
+            elif hardware == "feralcat":
+                from .dev_feralcat import FERALCAT
+                self.driver = FERALCAT(device)
 
         else:
             if self.driver is None:
@@ -158,6 +162,9 @@ class KillerBee:
                 if self.dev is not None:
                     if (self.dev == gps_devstring):
                         pass
+                    elif (DEV_ENABLE_CATSNIFFER and iscatsniffer(self.dev)):
+                        from .dev_feralcat import FERALCAT
+                        self.driver = FERALCAT(self.dev)
                     elif (DEV_ENABLE_SL_NODETEST and issl_nodetest(self.dev)):
                         from .dev_sl_nodetest import SL_NODETEST
                         self.driver = SL_NODETEST(self.dev)

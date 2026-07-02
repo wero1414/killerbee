@@ -273,6 +273,8 @@ def devlist(vendor: Optional[Any]=None, product: Optional[Any]=None, gps: Option
     for serialdev in get_serial_ports(include=include):
         if serialdev == gps_devstring:
             continue
+        elif (DEV_ENABLE_CATSNIFFER and iscatsniffer(serialdev)):
+            devlist.append([serialdev, "FeralRF CatSniffer (CC1352)", ""])
         elif (DEV_ENABLE_SL_NODETEST and issl_nodetest(serialdev)):
             devlist.append([serialdev, "Silabs NodeTest", ""])
         elif (DEV_ENABLE_SL_BEEHIVE and issl_beehive(serialdev)):
@@ -394,6 +396,25 @@ def isgoodfetccspi(serialdev: str) -> Tuple[bool, Optional[int]]:
                 return True, 1
     # Nothing found
     return False, None
+
+def iscatsniffer(serialdev: str) -> bool:
+    '''
+    Determine if a given serial device is a FeralRF CatSniffer (CC1352).
+    Passive check via the feralrf package's device list (matches the Cat-Bridge
+    CDC, USB VID 0x1209); does NOT open the port, so it is safe to run before
+    the aggressive GoodFET probe. Returns False if feralrf is not installed.
+    @type serialdev:  String
+    @param serialdev: Path to a serial device, ex /dev/ttyACM0.
+    @rtype:   Boolean
+    '''
+    try:
+        from feralrf.integrations.killerbee import KillerBeeFeralRF
+    except Exception:
+        return False
+    try:
+        return any(d.get("port") == serialdev for d in KillerBeeFeralRF.list_devices())
+    except Exception:
+        return False
 
 def iszigduino(serialdev: str) -> bool:
     '''
