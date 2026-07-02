@@ -11,6 +11,7 @@ from typing import Optional, Any, List, Dict, Union
 import sys
 import signal
 import argparse
+import serial
 import os
 from scapy.all import Dot15d4FCS # type: ignore
 from killerbee import KillerBee, PcapDumper, DainTreeDumper, DLT_IEEE802_15_4
@@ -144,14 +145,18 @@ def main():
     kb.set_channel(args.channel, args.subghz_page)
     kb.sniffer_on()
 
-    dump_packets(args)
-
-    kb.sniffer_off()
-    kb.close()
-    if pcap_dumper is not None:
-        pcap_dumper.close()
-    if daintree_dumper is not None:
-        daintree_dumper.close()
+    try:
+        dump_packets(args)
+    except (KeyboardInterrupt, serial.SerialException):
+        pass
+    finally:
+        for _c in (kb.sniffer_off, kb.close,
+                   (pcap_dumper.close if pcap_dumper is not None else (lambda: None)),
+                   (daintree_dumper.close if daintree_dumper is not None else (lambda: None))):
+            try:
+                _c()
+            except Exception:
+                pass
 
     print(("{0} packets captured".format(packetcount)))
 
