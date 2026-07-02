@@ -212,7 +212,10 @@ def devlist_usb_v1x(vendor: Optional[Any]=None, product: Optional[Any]=None) -> 
     else:               vendor = [vendor]
     if product is None: product = usbProductList
     else:               product = [product]
-    devs: Any = usb.core.find(find_all=True, custom_match=findFromList(vendor, product)) #backend=backend, 
+    try:
+        devs: Any = usb.core.find(find_all=True, custom_match=findFromList(vendor, product)) #backend=backend,
+    except usb.core.NoBackendError:
+        return []   # no libusb backend (e.g. macOS without `brew install libusb`); serial devices still enumerate
     try:
         for dev in devs:
             # Note, can use "{0:03d}:{1:03d}" to get the old format,
@@ -328,7 +331,9 @@ def get_serial_ports(include: Optional[Any]=None) -> Any:
         by the normal search. This may be useful if we're not including some
         oddly named serial port which you have a KillerBee device on. Optional.
     '''
-    seriallist = glob.glob("/dev/ttyUSB*") + glob.glob("/dev/tty.usbserial*") + glob.glob("/dev/ttyACM*") #TODO make cross platform globing/winnt
+    seriallist = (glob.glob("/dev/ttyUSB*") + glob.glob("/dev/tty.usbserial*")
+                  + glob.glob("/dev/ttyACM*") + glob.glob("/dev/cu.usbmodem*")
+                  + glob.glob("/dev/tty.usbmodem*")) #TODO make cross platform globing/winnt
     if include is not None:
         seriallist = list( set(seriallist).union(set(filter(isSerialDeviceString, include))) )
     return seriallist
