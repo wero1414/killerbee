@@ -27,8 +27,8 @@ def create_coord_realign(panid, coordinator, device, newchannel, newpanid, seqnu
     b.cmd_id = 8 # Realignment Command
     b.channel = newchannel # gotta change the channel
     b.dest_addr = args.device #coordinator
-    b.src_addr = args.longcoord #panid#coordinator    
-    pkt = str(b)
+    b.src_addr = args.longcoord #panid#coordinator
+    pkt = bytes(b)  # PY3 FIX: was str(b); str(scapy_pkt) returns the repr in Py3, not raw bytes
     #TODO: Update scapy-com to support the needed fields:
     # direct support for this in Dot15d4 was lacking - add required fields manually until I can patch.
     pkt = pkt[:24] + struct.pack('<H',newpanid) + pkt[26:] # the NEW PAN ID 
@@ -70,5 +70,5 @@ if __name__ == '__main__':
         seqnummac += 1
         if seqnummac > 255:
             seqnummac = 0
-        kb.inject(sp2) # already made it a string to get around limitation in dot14d4
+        kb.inject(sp2) # sp2 is bytes (see PY3 FIX above); works around a field gap in dot15d4
         sleep(0.005)
