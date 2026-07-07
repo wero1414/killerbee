@@ -68,5 +68,5 @@ if __name__ == '__main__':
         if seqnummac > 255:
             seqnummac = 0
         print(sp.summary())
-        kb.inject(str(sp))
+        kb.inject(bytes(sp))
         sleep(0.005)

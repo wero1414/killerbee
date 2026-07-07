@@ -107,7 +107,7 @@ if __name__ == '__main__':
     # TODO: not sure if this accounts for long address addressing schemes in 802.15.4
     def response_handler(packet):
         if len(packet) > 7:
-            if packet[9] == b'\x04': # we check if it is a data request, if so, then:
+            if packet[9] == 0x04: # data request? (py3: bytes index -> int)
                 sp = create_packet(args.panid, args.source, args.dest, args.data, args.extsource, args.ack, args.shortaddress, args.seqnum)
                 kb.sniffer_off()
                 kb.inject(sp)

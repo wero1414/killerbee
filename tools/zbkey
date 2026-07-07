@@ -85,7 +85,7 @@ def isAckFor(packet, lastseq):
     Determine if the packet is an acknowledgement frame corresponding to our
     last sent sequence number.
     '''
-    if packet[0:2] == 'b\x02\x00':
+    if packet[0:2] == b'\x02\x00':
         if packet[2:3] == lastseq:
             return True
     return False
